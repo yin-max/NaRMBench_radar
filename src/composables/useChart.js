@@ -165,11 +165,17 @@ export function useChart(csvData) {
     // When the CSV file is switched, all models are selected by default
     watch(baseDatasets, (newDatasets) => {
         console.log('baseDatasets updated:', newDatasets)
-        selectedModels.value = newDatasets.map(ds => ds.label)
+        // 从 localStorage 恢复 selectedModels
+        const savedModels = JSON.parse(localStorage.getItem('selectedModels') || '[]')
+        const validModels = savedModels.filter(model => newDatasets.some(ds => ds.label === model))
+        selectedModels.value = validModels.length > 0 ? validModels : newDatasets.map(ds => ds.label)
     }, { immediate: true })
 
-    // Core Optimization Part 2: chartData's computation is highly efficient
-    // It only filters and applies interaction styles, not data parsing and sorting
+    // 保存 selectedModels 到 localStorage
+    watch(selectedModels, (newModels) => {
+        localStorage.setItem('selectedModels', JSON.stringify(newModels))
+    }, { deep: true })
+
     const chartData = computed(() => {
         if (!csvData.value || !baseDatasets.value.length) {
             console.warn('chartData: Invalid csvData or baseDatasets')

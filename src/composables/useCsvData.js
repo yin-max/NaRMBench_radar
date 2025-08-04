@@ -94,7 +94,12 @@ export function useCsvData() {
         kitFiles.value = kitMap
 
         // Default selected kit
-        selectedKit.value = kits.value[0] || 'No Kit'
+        // selectedKit.value = kits.value[0] || 'No Kit'
+        // 从 localStorage 恢复 selectedKit
+        const savedKit = localStorage.getItem('selectedKit')
+        selectedKit.value = kits.value.includes(savedKit) ? savedKit : kits.value[0] || 'No Kit'
+
+
 
         // Filter CSV files; sort by preferredCsvOrder, then alphabetically if not specified
         const filteredCsvFiles = computed(() => {
@@ -112,12 +117,26 @@ export function useCsvData() {
         // Update csvFiles when selectedKit changes
         watch(filteredCsvFiles, (newFiles) => {
             csvFiles.value = newFiles
-            if (newFiles.length > 0 && (!selectedCsv.value || !newFiles.includes(selectedCsv.value))) {
-                selectedCsv.value = newFiles[0]
+            const savedCsv = localStorage.getItem('selectedCsv')
+            if (newFiles.length > 0) {
+                selectedCsv.value = newFiles.includes(savedCsv) ? savedCsv : newFiles[0]
+            } else {
+                selectedCsv.value = null
             }
         }, { immediate: true })
 
-        // Load CSV data
+        // 保存 selectedKit 和 selectedCsv 到 localStorage
+        watch(selectedKit, (newKit) => {
+            localStorage.setItem('selectedKit', newKit)
+        })
+
+        watch(selectedCsv, (newCsv) => {
+            if (newCsv) {
+                localStorage.setItem('selectedCsv', newCsv)
+            }
+        })
+
+        // 加载 CSV 数据
         for (const path in modules) {
             const fileName = path.split('/').pop()
             const content = modules[path]
