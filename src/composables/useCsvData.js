@@ -52,6 +52,53 @@ function getKitFromFileName(fileName) {
 }
 
 /**
+ * Checks if the localStorage data has expired.
+ * @param {string} key - localStorage key.
+ * @returns {any|null} - Data value or null (if expired or not exists).
+ */
+function getStoredWithExpiry(key) {
+    const itemStr = localStorage.getItem(key)
+    if (!itemStr) return null
+
+    try {
+        const item = JSON.parse(itemStr)
+        // 检查是否是新格式（{ value, expiry }）
+        if (item && typeof item === 'object' && 'value' in item && 'expiry' in item) {
+            const now = new Date().getTime()
+            if (now > item.expiry) {
+                localStorage.removeItem(key)
+                return null
+            }
+            return item.value
+        }
+        // 兼容旧格式（直接字符串）
+        console.warn(`Legacy format detected for ${key}: ${itemStr}`)
+        // 迁移旧数据到新格式（1 小时过期）
+        setStoredWithExpiry(key, itemStr, 10 * 60 * 1000)
+        return itemStr
+    } catch (error) {
+        console.error(`Failed to parse ${key} from localStorage: ${error.message}`)
+        // 如果解析失败，可能是旧的字符串格式，直接返回
+        return itemStr
+    }
+}
+
+/**
+ * 保存数据到 localStorage 并设置过期时间。
+ * @param {string} key - localStorage 键。
+ * @param {any} value - 要保存的值。
+ * @param {number} ttl - 存活时间（毫秒）。
+ */
+function setStoredWithExpiry(key, value, ttl) {
+    const now = new Date().getTime()
+    const item = {
+        value,
+        expiry: now + ttl,
+    }
+    localStorage.setItem(key, JSON.stringify(item))
+}
+
+/**
  * A composable function for handling CSV data loading, kit classification, and state management.
  */
 export function useCsvData() {
@@ -96,7 +143,7 @@ export function useCsvData() {
         // Default selected kit
         // selectedKit.value = kits.value[0] || 'No Kit'
         // 从 localStorage 恢复 selectedKit
-        const savedKit = localStorage.getItem('selectedKit')
+        const savedKit = getStoredWithExpiry('selectedKit')
         selectedKit.value = kits.value.includes(savedKit) ? savedKit : kits.value[0] || 'No Kit'
 
 
@@ -117,7 +164,7 @@ export function useCsvData() {
         // Update csvFiles when selectedKit changes
         watch(filteredCsvFiles, (newFiles) => {
             csvFiles.value = newFiles
-            const savedCsv = localStorage.getItem('selectedCsv')
+            const savedCsv = getStoredWithExpiry('selectedCsv')
             if (newFiles.length > 0) {
                 selectedCsv.value = newFiles.includes(savedCsv) ? savedCsv : newFiles[0]
             } else {
@@ -125,14 +172,14 @@ export function useCsvData() {
             }
         }, { immediate: true })
 
-        // 保存 selectedKit 和 selectedCsv 到 localStorage
+        // Save selectedKit and selectedCsv to localStorage (1 hour expiry)
         watch(selectedKit, (newKit) => {
-            localStorage.setItem('selectedKit', newKit)
+            setStoredWithExpiry('selectedKit', newKit, 10 * 60 * 1000)
         })
 
         watch(selectedCsv, (newCsv) => {
             if (newCsv) {
-                localStorage.setItem('selectedCsv', newCsv)
+                setStoredWithExpiry('selectedCsv', newCsv, 10 * 60 * 1000)
             }
         })
 

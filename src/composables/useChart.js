@@ -1,5 +1,5 @@
 import { ref, computed, watch } from 'vue'
-import { generateColors, hexToHsl } from '../utils/chartConfig'
+import { generateColors } from '../utils/chartConfig'
 
 // Image cache
 const imageCache = ref({})
@@ -30,6 +30,53 @@ function preloadImages(labels) {
         }
     })
 }
+
+/**
+ * 检查 localStorage 数据是否过期。
+ * @param {string} key - localStorage 键。
+ * @returns {any|null} - 数据值或 null（如果过期或不存在）。
+ */
+function getStoredWithExpiry(key) {
+    const itemStr = localStorage.getItem(key)
+    if (!itemStr) return null
+
+    try {
+        const item = JSON.parse(itemStr)
+        // 检查是否是新格式（{ value, expiry }）
+        if (item && typeof item === 'object' && 'value' in item && 'expiry' in item) {
+            const now = new Date().getTime()
+            if (now > item.expiry) {
+                localStorage.removeItem(key)
+                return null
+            }
+            return item.value
+        }
+        // 兼容旧格式（直接 JSON 数组）
+        console.warn(`Legacy format detected for ${key}: ${itemStr}`)
+        // 迁移旧数据到新格式（1 小时过期）
+        setStoredWithExpiry(key, item, 10 * 60 * 1000)
+        return item
+    } catch (error) {
+        console.error(`Failed to parse ${key} from localStorage: ${error.message}`)
+        return null
+    }
+}
+
+/**
+ * 保存数据到 localStorage 并设置过期时间。
+ * @param {string} key - localStorage 键。
+ * @param {any} value - 要保存的值。
+ * @param {number} ttl - 存活时间（毫秒）。
+ */
+function setStoredWithExpiry(key, value, ttl) {
+    const now = new Date().getTime()
+    const item = {
+        value,
+        expiry: now + ttl,
+    }
+    localStorage.setItem(key, JSON.stringify(item))
+}
+
 
 /**
  * Chart.js plugin for drawing icons next to radar chart labels.
@@ -166,14 +213,14 @@ export function useChart(csvData) {
     watch(baseDatasets, (newDatasets) => {
         console.log('baseDatasets updated:', newDatasets)
         // 从 localStorage 恢复 selectedModels
-        const savedModels = JSON.parse(localStorage.getItem('selectedModels') || '[]')
-        const validModels = savedModels.filter(model => newDatasets.some(ds => ds.label === model))
+        const savedModels = getStoredWithExpiry('selectedModels')
+        const validModels = Array.isArray(savedModels) ? savedModels.filter(model => newDatasets.some(ds => ds.label === model)) : []
         selectedModels.value = validModels.length > 0 ? validModels : newDatasets.map(ds => ds.label)
     }, { immediate: true })
 
-    // 保存 selectedModels 到 localStorage
+    // 保存 selectedModels 到 localStorage（1 小时过期）
     watch(selectedModels, (newModels) => {
-        localStorage.setItem('selectedModels', JSON.stringify(newModels))
+        setStoredWithExpiry('selectedModels', newModels, 10 * 60 * 1000)
     }, { deep: true })
 
     const chartData = computed(() => {
