@@ -52,8 +52,9 @@
         <!-- #45b2e0: retrained model -->
         <div class="note">
           <p>
-            Note: Models with a border color of 
-            <span class="color-box"></span> are retrained models.
+            Note: Models with a
+            <span class="color-box"></span>
+            border are retrained models.
           </p>
         </div>
       </div>
@@ -185,6 +186,7 @@ const {
   background-color: #f0f0f0;
   border: 1px solid #ccc;
   border-radius: 4px;
+  color: #000;
 }
 
 .toggle-btn:disabled {
