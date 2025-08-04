@@ -1,0 +1,9 @@
+,AUROC,AUPRC,Distribution similarity with ground-truth,Sequencing depth bias,Modification level bias,Speed,Memory efficiency
+Max,1,1,1,1,1,1,1
+Min,0,0,0,0,0,0,0
+NanoSPA-retrain,0.47,0.02,0.887,0.585,0.99,1,0.974335625348448
+m6Anet-retrain,0.5,0.01,0.643,0.788,0.998,0.806240679132729,0.832837762497677
+TandemMod,0.43,0.01,0.9,0.9993,0.996,0.660548353791442,0.828005946850028
+Dinopore-retrain,0.52,0.01,0.686,0.01,0.01,0.956407020764024,0
+SingleMod-retrain,0.41,0.01,0.614,1,1,0,1
+EpiNano-retrain,0.52,0.01,0.699,0.998,0.997,0.469886428817254,0.967589667348077
