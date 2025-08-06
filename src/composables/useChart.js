@@ -1,5 +1,6 @@
 import { ref, computed, watch } from 'vue'
 import { generateColors } from '../utils/chartConfig'
+import { getStoredWithExpiry, setStoredWithExpiry } from '../utils/storage'
 
 const custom_maxWidth = 15
 const custom_expiry_minutes = 10
@@ -35,52 +36,6 @@ function preloadImages(labels) {
             imageCache.value[imageSrc] = img // Immediate cache, even if not loaded
         }
     })
-}
-
-/**
- * Check if the localStorage data has expired.
- * @param {string} key - The localStorage key.
- * @returns {any|null} - The data value or null (if expired or non-existent).
- */
-function getStoredWithExpiry(key) {
-    const itemStr = localStorage.getItem(key)
-    if (!itemStr) return null
-
-    try {
-        const item = JSON.parse(itemStr)
-        // Check if it is a new format ({ value, expiry })
-        if (item && typeof item === 'object' && 'value' in item && 'expiry' in item) {
-            const now = new Date().getTime()
-            if (now > item.expiry) {
-                localStorage.removeItem(key)
-                return null
-            }
-            return item.value
-        }
-        // Compatible with old format (direct JSON array)
-        console.warn(`Legacy format detected for ${key}: ${itemStr}`)
-        // Migrate old data to new format (custom expiry minutes)
-        setStoredWithExpiry(key, item, custom_expiry_minutes * 60 * 1000) // Custom expiry minutes
-        return item
-    } catch (error) {
-        console.error(`Failed to parse ${key} from localStorage: ${error.message}`)
-        return null
-    }
-}
-
-/**
- * Save data to localStorage and set expiry time.
- * @param {string} key - localStorage key.
- * @param {any} value - The value to save.
- * @param {number} ttl - Time to live in milliseconds.
- */
-function setStoredWithExpiry(key, value, ttl) {
-    const now = new Date().getTime()
-    const item = {
-        value,
-        expiry: now + ttl,
-    }
-    localStorage.setItem(key, JSON.stringify(item))
 }
 
 /**
@@ -265,7 +220,12 @@ export const pointLabelImagesPlugin = {
 /**
  * Manage the logic of the Chart.js radar chart, including data conversion, option configuration, and interaction.
  */
-export function useChart(csvData) {
+/**
+ * @param {import('vue').ComputedRef<object|null>} csvData - The current CSV data.
+ * @param {import('vue').Ref<string>} selectedKit - The currently selected Kit.
+ * @param {import('vue').Ref<string>} selectedCsv - The currently selected CSV filename.
+ */
+export function useChart(csvData, selectedKit, selectedCsv) {
     const chartRef = ref(null)
     const modelNames = ref([])
     const selectedModels = ref([])
@@ -273,7 +233,13 @@ export function useChart(csvData) {
 
     const maxModelNumPerColumn = custom_maxModelNumPerColumn // Maximum number of models to display per column
 
+    // ✨ 创建一个动态的、唯一的 localStorage 键
+    const storageKey = computed(() => {
+        if (!selectedKit.value || !selectedCsv.value) return null;
+        return `selectedModels_${selectedKit.value}_${selectedCsv.value}`;
+    });
     // This watcher will trigger when csvData is updated, preloading images for all labels
+
     watch(csvData, (newCsvData) => {
         console.log('csvData updated:', newCsvData)
         if (newCsvData?.labels) {
@@ -333,14 +299,21 @@ export function useChart(csvData) {
     watch(baseDatasets, (newDatasets) => {
         console.log('baseDatasets updated:', newDatasets)
         // Restore selectedModels from localStorage
-        const savedModels = getStoredWithExpiry('selectedModels')
+        if (!newDatasets || newDatasets.length === 0) return
+
+        let savedModels = null
+        if (storageKey.value) {
+            savedModels = getStoredWithExpiry(storageKey.value)
+        }
         const validModels = Array.isArray(savedModels) ? savedModels.filter(model => newDatasets.some(ds => ds.label === model)) : []
         selectedModels.value = validModels.length > 0 ? validModels : newDatasets.map(ds => ds.label)
-    }, { immediate: true })
+    }, { immediate: true, deep: true })
 
     // Save selectedModels to localStorage
     watch(selectedModels, (newModels) => {
-        setStoredWithExpiry('selectedModels', newModels, custom_expiry_minutes * 60 * 1000)
+        if (storageKey.value) {
+            setStoredWithExpiry(storageKey.value, newModels);
+        }
     }, { deep: true })
 
     const chartData = computed(() => {

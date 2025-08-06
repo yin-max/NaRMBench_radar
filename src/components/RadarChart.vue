@@ -92,7 +92,7 @@ const {
   modelColumns,
   selectAllModels,
   clearAllModels,
-} = useChart(currentCsvData);
+} = useChart(currentCsvData, selectedKit, selectedCsv);
 
 </script>
 
