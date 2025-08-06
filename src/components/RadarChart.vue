@@ -94,6 +94,9 @@ const {
   clearAllModels,
 } = useChart(currentCsvData, selectedKit, selectedCsv);
 
+// 3. custom chart options
+const maxChartWidth = '1324px'
+
 </script>
 
 <style scoped>
@@ -106,6 +109,7 @@ const {
   /* margin: 0 auto; */
   padding: 0rem;
   background-color: white;
+  max-width: maxChartWidth;
 }
 
 .wrapper {
@@ -114,6 +118,7 @@ const {
   display: flex; /* Use Flexbox for centering */
   justify-content: center; /* Horizontal centering */
   align-items: center; /* Vertical centering (optional) */
+  max-width: v-bind(maxChartWidth);
 }
 
 .chart-box {
@@ -122,11 +127,13 @@ const {
   height: 80vw; /* Height adjusts with width */
   max-height: 800px; /* Maximum height limit */
   margin: 0 auto; /* Additional centering assurance */
+  max-width: v-bind(maxChartWidth);
 }
 
 .chart-box canvas {
   width: 100% !important;
   height: 100% !important;
+  max-width: v-bind(maxChartWidth);
 }
 
 /* small screen adjustments */
