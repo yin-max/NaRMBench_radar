@@ -1,5 +1,12 @@
 import { ref, computed, watch } from 'vue'
-import { generateColors, hexToHsl } from '../utils/chartConfig'
+import { generateColors } from '../utils/chartConfig'
+import { getStoredWithExpiry, setStoredWithExpiry } from '../utils/storage'
+
+const custom_maxWidth = 15
+const custom_expiry_minutes = 10
+const custom_maxModelNumPerColumn = 5
+const custom_padding_label_to_point = 0
+const point_hover_showing_model_name = false
 
 // Image cache
 const imageCache = ref({})
@@ -19,8 +26,8 @@ function preloadImages(labels) {
             img.src = imageSrc
             img.onload = () => {
                 setTimeout(() => {
-                imageCache.value[imageSrc] = img
-                console.log(`Loaded image for ${label}: ${imageSrc}, complete: ${img.complete}`)
+                    imageCache.value[imageSrc] = img
+                    console.log(`Loaded image for ${label}: ${imageSrc}, complete: ${img.complete}`)
                 }, 100)
             }
             img.onerror = () => {
@@ -30,6 +37,114 @@ function preloadImages(labels) {
         }
     })
 }
+
+/**
+ * [HELPER] Greedy line wrapping algorithm: Fill each line as much as possible until the next word cannot fit.
+ * @param {string[]} words - Array of words.
+ * @param {number} maxWidth - Maximum width per line.
+ * @returns {string[]} - Array of split lines.
+ */
+function greedyWrap(words, maxWidth) {
+    if (!words || words.length === 0) return ['']
+    const lines = []
+    let currentLine = words[0]
+
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i]
+        if ((currentLine + ' ' + word).length > maxWidth) {
+            lines.push(currentLine)
+            currentLine = word
+        } else {
+            currentLine += ' ' + word
+        }
+    }
+    lines.push(currentLine) // Push the last line
+    return lines
+}
+
+/**
+ * [HELPER] Ideal split point algorithm (the function we analyzed before).
+ * @param {string} label - Original label string.
+ * @param {number} maxWidth - Maximum width (may be Infinity in certain cases).
+ * @param {number} targetLines - Target number of split lines.
+ * @returns {string[]} - An array of wrapped label strings.
+ */
+function performIdealSplit(label, maxWidth, targetLines) {
+    if (!label) return ['']
+    // If the target is only 1 line or the string is very short, return directly
+    if (targetLines <= 1 || label.length <= maxWidth) return [label]
+
+    const words = label.split(' ')
+    if (words.length <= 1) return [label]
+
+    const totalLength = label.length
+    // Use the target number of lines to calculate the ideal length
+    const idealLength = totalLength / targetLines
+
+    let bestSplitIndex = 0
+    let smallestDiff = Infinity
+    let currentLength = 0
+
+    for (let i = 0; i < words.length - 1; i++) {
+        currentLength += words[i].length + 1
+        const diff = Math.abs(currentLength - idealLength)
+        if (diff < smallestDiff) {
+            smallestDiff = diff
+            bestSplitIndex = i + 1
+        }
+    }
+
+    // If no good split point is found (e.g., only one word), split after the first word
+    if (bestSplitIndex === 0) bestSplitIndex = 1
+
+    const firstLine = words.slice(0, bestSplitIndex).join(' ')
+    const rest = words.slice(bestSplitIndex).join(' ')
+
+    // Recursive condition: The remaining part is still too long (relative to maxWidth) and there is still budget for more than 1 line
+    // Note that here is targetLines > 1 instead of maxLines > 2, which is more clear
+    if (rest.length > maxWidth && targetLines > 1) {
+        // Recursive call, target number of lines minus 1
+        return [firstLine, ...performIdealSplit(rest, maxWidth, targetLines - 1)]
+    }
+
+    return [firstLine, rest]
+}
+
+
+/**
+ * @param {string} label - The original label string to wrap.
+ * @param {number} maxWidth - The maximum number of characters per line.
+ * @param {number} maxLines - The maximum number of lines allowed.
+ * @returns {string[]} - An array of wrapped label strings.
+ */
+function wrapLabel(label, maxWidth, maxLines = 3) {
+    // 1. Initial boundary check
+    if (!label) return ['']
+    if (label.length <= maxWidth) return [label]
+
+    const words = label.split(' ')
+    if (words.length <= 1) return [label] // Single long word cannot be processed
+
+    // 2. First perform "greedy" line wrapping, check how many lines are needed
+    const greedyLines = greedyWrap(words, maxWidth)
+    const greedyLinesCount = greedyLines.length
+
+    // 3. Decide based on the new rules
+    if (greedyLinesCount <= maxLines) {
+        // Case 1: Greedy wrapping does not exceed maxLines limit.
+        // We use the "ideal split point" algorithm to beautify the lines within `greedyLinesCount` lines.
+        // console.log(`Greedy wrapping needs ${greedyLinesCount} lines (within budget), we use the "ideal split point" algorithm to beautify the lines within ${greedyLinesCount} lines.`);
+        return performIdealSplit(label, maxWidth, greedyLinesCount)
+    } else {
+        // Case 2: Greedy wrapping exceeds maxLines limit.
+        // We must give up maxWidth, force split within `maxLines` lines.
+        // We set maxWidth to Infinity to let the "ideal split point" algorithm ignore the length limit.
+        // console.log(`Greedy wrapping needs ${greedyLinesCount} lines (exceeds budget!), we must force split within ${maxLines} lines.`);
+        return performIdealSplit(label, Infinity, maxLines)
+    }
+}
+
+
 
 /**
  * Chart.js plugin for drawing icons next to radar chart labels.
@@ -42,12 +157,11 @@ export const pointLabelImagesPlugin = {
             labelPositions: chart.scales.r?._pointLabelItems
         })
         const { ctx, scales: { r }, width } = chart
-        const labels = chart.data.labels
         const labelPositions = r?._pointLabelItems
         const canvas = chart.canvas
-        if (!labelPositions || !canvas || !labels.length) {
+        if (!labelPositions || !canvas || !chart.data.labels.length) {
             console.warn('Plugin afterDraw skipped: Invalid labels or labelPositions', {
-                labels,
+                labels: chart.data.labels,
                 labelPositions,
                 canvas
             })
@@ -56,57 +170,76 @@ export const pointLabelImagesPlugin = {
 
         // Dynamically adjust icon size and spacing
         const imageSize = Math.max(20, width / 15) // Adjust image size with canvas width
-        const fontSize = Math.max(10, Math.min(width / 40, 14))
+        const fontSize = Math.max(10, window.innerWidth / 80)
         const padding = Math.max(10, width / 30)
         const centerX = r.xCenter
         const centerY = r.yCenter
 
         ctx.font = `${fontSize}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
 
-        labels.forEach((label, index) => {
-            // Use getIconUrl directly to avoid relying on labelImageMap
-            const imageSrc = getIconUrl(label)
-            if (!imageSrc || !imageCache.value[imageSrc]) {
-                console.warn(`No image for label: ${label}`)
+        chart.data.labels.forEach((label, index) => {
+            const position = labelPositions[index]
+            if (!position) return
+
+            // Get the wrapped label lines
+            const lines = wrapLabel(label, custom_maxWidth)
+            let maxWidth = 0
+            lines.forEach(line => {
+                const lineWidth = ctx.measureText(line).width
+                console.log(`Line: ${line}, width: ${lineWidth}`)
+                if (lineWidth > maxWidth) {
+                    maxWidth = lineWidth
+                }
+            })
+
+            const imageSrc = getIconUrl(label) // get the original label
+            const img = imageCache.value[imageSrc]
+            if (!img || !img.complete) {
+                console.warn(`Image not loaded for ${label}: ${imageSrc}`)
                 return
             }
 
-            const img = imageCache.value[imageSrc]
-            if (img && img.complete) {
-                const { x, y, textAlign } = labelPositions[index]
-                const textWidth = ctx.measureText(label).width
-                const rad = Math.atan2(y - centerY, x - centerX)
-                let imageX = x + Math.cos(rad) * (textWidth + padding * 3) - imageSize / 2
-                let imageY = y + Math.sin(rad) * (padding * 2) - imageSize / 2
+            const { x, y, textAlign } = position
+            const rad = Math.atan2(y - centerY, x - centerX)
 
-                // Limit the image position to stay within the canvas boundaries
-                imageX = Math.max(0, Math.min(canvas.width - imageSize, imageX))
-                imageY = Math.max(0, Math.min(canvas.height - imageSize, imageY))
+            let imageX = x + Math.cos(rad) * (maxWidth + padding * 3) - imageSize / 2
+            let imageY = y + Math.sin(rad) * (padding * 3) - imageSize / 2
 
-                ctx.drawImage(img, imageX, imageY, imageSize, imageSize)
-                console.log(`Drawing image: ${imageSrc} at x: ${imageX}, y: ${imageY}, size: ${imageSize}, label: ${label}`)
-            } else {
-                console.warn(`Image not loaded for ${label}: ${imageSrc}`)
-            }
+            // Ensure the icon is within the canvas range
+            imageX = Math.max(0, Math.min(canvas.width - imageSize, imageX))
+            imageY = Math.max(0, Math.min(canvas.height - imageSize, imageY))
+
+            ctx.drawImage(img, imageX, imageY, imageSize, imageSize)
+            console.log(`Drawing image: ${imageSrc} at x: ${imageX}, y: ${imageY}, size: ${imageSize}, label: ${label}, maxWidth: ${maxWidth}`)
         })
     }
 }
 
-// --- Composable Main Body ---
-
 /**
- * Manages the logic for a Chart.js radar chart, including data conversion, option configuration, and interaction.
- * @param {import('vue').ComputedRef<object|null>} csvData - The current CSV data from useCsvData.
+ * Manage the logic of the Chart.js radar chart, including data conversion, option configuration, and interaction.
  */
-export function useChart(csvData) {
+/**
+ * @param {import('vue').ComputedRef<object|null>} csvData - The current CSV data.
+ * @param {import('vue').Ref<string>} selectedKit - The currently selected Kit.
+ * @param {import('vue').Ref<string>} selectedCsv - The currently selected CSV filename.
+ */
+export function useChart(csvData, selectedKit, selectedCsv) {
     const chartRef = ref(null)
     const modelNames = ref([])
     const selectedModels = ref([])
     const hoveredDatasetIndex = ref(null)
 
-    const maxModelNumPerColumn = 5 // Maximum number of models to display per column
+    const maxModelNumPerColumn = custom_maxModelNumPerColumn // Maximum number of models to display per column
 
-    // 调试 csvData
+    // ✨ 创建一个动态的、唯一的 localStorage 键
+    const storageKey = computed(() => {
+        if (!selectedKit.value || !selectedCsv.value) return null;
+        return `selectedModels_${selectedKit.value}_${selectedCsv.value}`;
+    });
+    // This watcher will trigger when csvData is updated, preloading images for all labels
+
     watch(csvData, (newCsvData) => {
         console.log('csvData updated:', newCsvData)
         if (newCsvData?.labels) {
@@ -136,7 +269,7 @@ export function useChart(csvData) {
         const { data: modelData, sortData } = csvData.value
         console.log('baseDatasets: modelData', modelData)
 
-        // 按指标总和对模型进行降序排序
+        // Sort the models in descending order based on the sum of indicators
         const modelSums = Object.entries(sortData)
             .filter(([name]) => !name.includes('Max') && !name.includes('Min'))
             .map(([name, values]) => ({
@@ -157,7 +290,7 @@ export function useChart(csvData) {
             borderColor: colors[i],
             backgroundColor: colors[i].replace('hsl', 'hsla').replace(')', ', 0.2)'),
             pointBackgroundColor: colors[i],
-            fill: true,
+            fill: false, // do not fill the area under the line
             pointHitRadius: 10,
         }))
     })
@@ -165,11 +298,24 @@ export function useChart(csvData) {
     // When the CSV file is switched, all models are selected by default
     watch(baseDatasets, (newDatasets) => {
         console.log('baseDatasets updated:', newDatasets)
-        selectedModels.value = newDatasets.map(ds => ds.label)
-    }, { immediate: true })
+        // Restore selectedModels from localStorage
+        if (!newDatasets || newDatasets.length === 0) return
 
-    // Core Optimization Part 2: chartData's computation is highly efficient
-    // It only filters and applies interaction styles, not data parsing and sorting
+        let savedModels = null
+        if (storageKey.value) {
+            savedModels = getStoredWithExpiry(storageKey.value)
+        }
+        const validModels = Array.isArray(savedModels) ? savedModels.filter(model => newDatasets.some(ds => ds.label === model)) : []
+        selectedModels.value = validModels.length > 0 ? validModels : newDatasets.map(ds => ds.label)
+    }, { immediate: true, deep: true })
+
+    // Save selectedModels to localStorage
+    watch(selectedModels, (newModels) => {
+        if (storageKey.value) {
+            setStoredWithExpiry(storageKey.value, newModels);
+        }
+    }, { deep: true })
+
     const chartData = computed(() => {
         if (!csvData.value || !baseDatasets.value.length) {
             console.warn('chartData: Invalid csvData or baseDatasets')
@@ -190,7 +336,7 @@ export function useChart(csvData) {
                 ? [ds.data[0], ...ds.data.slice(1).reverse()]
                 : []
 
-            const baseOpacity = isHovered ? 0.2 : 0.02
+            const baseOpacity = isHovered ? 0.5 : 0.02
             const backgroundColor = ds.backgroundColor.replace(/, [\d.]+?\)/, `, ${baseOpacity})`)
 
             return {
@@ -201,6 +347,7 @@ export function useChart(csvData) {
                 pointHoverRadius: 6,
                 borderColor: isHovered ? ds.borderColor : ds.borderColor.replace('hsl', 'hsla').replace(')', ', 0.3)'),
                 backgroundColor,
+                fill: isHovered
             }
         })
 
@@ -225,7 +372,15 @@ export function useChart(csvData) {
                 min: -0.25,
                 max: 1,
                 grid: { circular: false }, /* Changed to polylines */
-                pointLabels: { font: { size: Math.max(10, window.innerWidth / 80) }, padding: 20 },
+                pointLabels: {
+                    font: { size: Math.max(10, window.innerWidth / 80) },
+                    padding: custom_padding_label_to_point, // ✨ Adjust the spacing between labels and points
+                    // --- ✨ Label line wrapping callback function ---
+                    callback: function (label) {
+                        // The maximum width per line is `${custom_maxWidth}` characters, which can be adjusted as needed
+                        return wrapLabel(label, custom_maxWidth)
+                    }
+                },
                 ticks: {
                     stepSize: 0.25,
                     callback: value => (value >= 0 ? value : null)
@@ -236,18 +391,22 @@ export function useChart(csvData) {
             legend: { display: false },
             tooltip: {
                 callbacks: {
-                    title: () => '', // Remove title
-                    label: (ctx) => `${ctx.label}: ${Number(ctx.raw).toFixed(4)}` // Format tooltip label: 4 decimal places
+                    title: () => '', // remove title
+                    // label: (ctx) => `${ctx.label.toString().replace(/,/g, ' ')}: ${Number(ctx.raw).toFixed(4)}` // Merge multi-line labels and format tooltip label: 4 decimal places
+                    // label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(4)}` // model name and format tooltip label: 4 decimal places
+                    label: (ctx) => {
+                        if (point_hover_showing_model_name) {
+                            return `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(4)}` // model name and format tooltip label: 4 decimal places
+                        } else {
+                            return `${ctx.label.toString().replace(/,/g, ' ')}: ${Number(ctx.raw).toFixed(4)}` // Merge multi-line labels and format tooltip label: 4 decimal places
+                        }
+                    }
                 }
             },
             pointLabelImages: pointLabelImagesPlugin, // Enable plugin if icons are needed, otherwise comment out this line
         },
         onHover: (event, chartElements) => {
-            if (chartElements.length > 0) {
-                hoveredDatasetIndex.value = chartElements[0].datasetIndex
-            } else {
-                hoveredDatasetIndex.value = null
-            }
+            hoveredDatasetIndex.value = chartElements.length > 0 ? chartElements[0].datasetIndex : null
         }
     }))
 
@@ -262,7 +421,7 @@ export function useChart(csvData) {
     const modelColors = computed(() => {
         const map = {}
         baseDatasets.value.forEach(ds => {
-            map[ds.label] = ds.textColor || ds.borderColor
+            map[ds.label] = ds.borderColor
         })
         return map
     })

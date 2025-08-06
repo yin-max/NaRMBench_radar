@@ -1,5 +1,6 @@
 import { ref, computed, watch } from 'vue'
 import { preferredCsvOrder } from '../utils/chartConfig'
+import { getStoredWithExpiry, setStoredWithExpiry } from '../utils/storage'
 
 /**
  * Parses a CSV string into a structured JSON object.
@@ -51,6 +52,7 @@ function getKitFromFileName(fileName) {
     return 'No Kit'
 }
 
+
 /**
  * A composable function for handling CSV data loading, kit classification, and state management.
  */
@@ -65,7 +67,7 @@ export function useCsvData() {
     const kitFiles = ref({})
 
     // Vite's import.meta.glob dynamically loads all .csv files in the src/data/ directory
-    const modules = import.meta.glob('../data/*.csv', { as: 'raw', eager: true })
+    const modules = import.meta.glob('../data/*.csv', { query: '?raw', import: 'default', eager: true })
 
     try {
         const availableFiles = Object.keys(modules).map(path => path.split('/').pop())
@@ -94,7 +96,12 @@ export function useCsvData() {
         kitFiles.value = kitMap
 
         // Default selected kit
-        selectedKit.value = kits.value[0] || 'No Kit'
+        // selectedKit.value = kits.value[0] || 'No Kit'
+        // 从 localStorage 恢复 selectedKit
+        const savedKit = getStoredWithExpiry('selectedKit')
+        selectedKit.value = kits.value.includes(savedKit) ? savedKit : kits.value[0] || 'No Kit'
+
+
 
         // Filter CSV files; sort by preferredCsvOrder, then alphabetically if not specified
         const filteredCsvFiles = computed(() => {
@@ -112,12 +119,26 @@ export function useCsvData() {
         // Update csvFiles when selectedKit changes
         watch(filteredCsvFiles, (newFiles) => {
             csvFiles.value = newFiles
-            if (newFiles.length > 0 && (!selectedCsv.value || !newFiles.includes(selectedCsv.value))) {
-                selectedCsv.value = newFiles[0]
+            const savedCsv = getStoredWithExpiry('selectedCsv')
+            if (newFiles.length > 0) {
+                selectedCsv.value = newFiles.includes(savedCsv) ? savedCsv : newFiles[0]
+            } else {
+                selectedCsv.value = null
             }
         }, { immediate: true })
 
-        // Load CSV data
+        // Save selectedKit and selectedCsv to localStorage (1 hour expiry)
+        watch(selectedKit, (newKit) => {
+            setStoredWithExpiry('selectedKit', newKit)
+        })
+
+        watch(selectedCsv, (newCsv) => {
+            if (newCsv) {
+                setStoredWithExpiry('selectedCsv', newCsv)
+            }
+        })
+
+        // 加载 CSV 数据
         for (const path in modules) {
             const fileName = path.split('/').pop()
             const content = modules[path]
