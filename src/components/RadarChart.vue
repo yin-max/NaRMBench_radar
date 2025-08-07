@@ -35,16 +35,13 @@
           </legend>
           <div class="model-columns">
             <div v-for="(column, colIndex) in modelColumns" :key="colIndex" class="column">
-              <label
-                v-for="name in column"
-                :key="name"
-                class="checkbox"
+              <label v-for="name in column" :key="name" class="checkbox"
                 :class="{ nomal: name.toLowerCase() !== 'retrain', retrain: name.toLowerCase().includes('retrain') }"
                 :style="{ backgroundColor: selectedModels.includes(name) ? modelColors[name] : 'transparent' }"
-                :title="name"
-              >
+                :title="name">
                 <input type="checkbox" :value="name" v-model="selectedModels" />
-                <span class="model-name" :style="{ color: selectedModels.includes(name) ? '#ffffff' : modelColors[name] }">{{ name }}</span>
+                <span class="model-name"
+                  :style="{ color: selectedModels.includes(name) ? '#ffffff' : modelColors[name] }">{{ name }}</span>
               </label>
             </div>
           </div>
@@ -70,16 +67,16 @@
 </template>
 
 <script setup>
-import { Radar } from 'vue-chartjs';
-import { Chart as ChartJS, Title, Tooltip, Legend, RadialLinearScale, PointElement, LineElement, Filler } from 'chart.js';
-import { useCsvData } from '../composables/useCsvData';
-import { useChart, pointLabelImagesPlugin } from '../composables/useChart';
+import { Radar } from 'vue-chartjs'
+import { Chart as ChartJS, Title, Tooltip, Legend, RadialLinearScale, PointElement, LineElement, Filler } from 'chart.js'
+import { useCsvData } from '../composables/useCsvData'
+import { useChart, pointLabelImagesPlugin } from '../composables/useChart'
 
 // Register Chart.js core components and custom plugins
-ChartJS.register(Title, Tooltip, Legend, RadialLinearScale, PointElement, LineElement, Filler, pointLabelImagesPlugin);
+ChartJS.register(Title, Tooltip, Legend, RadialLinearScale, PointElement, LineElement, Filler, pointLabelImagesPlugin)
 
 // 1. Get data loading logic
-const { isLoading, errorMessage, csvFiles, selectedCsv, currentCsvData, selectedKit, kits } = useCsvData();
+const { isLoading, errorMessage, csvFiles, selectedCsv, currentCsvData, selectedKit, kits } = useCsvData()
 
 // 2. Get chart logic and pass reactive data in
 const {
@@ -92,10 +89,12 @@ const {
   modelColumns,
   selectAllModels,
   clearAllModels,
-} = useChart(currentCsvData, selectedKit, selectedCsv);
+} = useChart(currentCsvData, selectedKit, selectedCsv)
 
 // 3. custom chart options
-const maxChartWidth = '1324px'
+const maxChartWidth = 1324
+const minChartWidth = 500
+const maxChartHeight = maxChartWidth * 0.6
 
 </script>
 
@@ -105,39 +104,52 @@ const maxChartWidth = '1324px'
   flex-direction: column;
   align-items: center;
   width: 100%;
-  max-width: 100%; /* Consistent with App */
+  max-width: 100%;
+  /* Consistent with App */
   /* margin: 0 auto; */
   padding: 0rem;
   background-color: white;
-  max-width: maxChartWidth;
+  max-width: v-bind('maxChartWidth + "px"');
+  min-width: v-bind('minChartWidth + "px"');
 }
 
 .wrapper {
   width: 100%;
-  max-width: 100vw; /* Adjust with viewport width to control radar chart size */
-  display: flex; /* Use Flexbox for centering */
-  justify-content: center; /* Horizontal centering */
-  align-items: center; /* Vertical centering (optional) */
-  max-width: v-bind(maxChartWidth);
+  max-width: 100vw;
+  /* Adjust with viewport width to control radar chart size */
+  display: flex;
+  /* Use Flexbox for centering */
+  justify-content: center;
+  /* Horizontal centering */
+  align-items: center;
+  /* Vertical centering (optional) */
+  max-width: v-bind('maxChartWidth + "px"');
+  min-width: v-bind('minChartWidth + "px"');
 }
 
 .chart-box {
   position: relative;
-  width: 90%;
-  height: 80vw; /* Height adjusts with width */
-  max-height: 800px; /* Maximum height limit */
-  margin: 0 auto; /* Additional centering assurance */
-  max-width: v-bind(maxChartWidth);
+  width: 100%;
+  /* Height adjusts with width */
+  /* height: 800px; */
+  /* Maximum height limit */
+  margin: 0 auto;
+  /* Additional centering assurance */
+  max-width: v-bind('maxChartWidth + "px"');
+  min-width: v-bind('minChartWidth + "px"');
 }
 
 .chart-box canvas {
   width: 100% !important;
   height: 100% !important;
-  max-width: v-bind(maxChartWidth);
+  /* max-height: 800px; */
+  max-height: v-bind('maxChartHeight + "px"');
+  max-width: v-bind('maxChartWidth + "px"');
+  min-width: v-bind('minChartWidth + "px"');
 }
 
 /* small screen adjustments */
-@media (max-width: 768px) {
+/* @media (max-width: 768px) {
   .wrapper {
     max-width: 95vw;
   }
@@ -145,17 +157,8 @@ const maxChartWidth = '1324px'
     height: 80vw;
     min-height: 300px;
   }
-}
+} */
 
-@media (max-width: 480px) {
-  .wrapper {
-    max-width: 98vw;
-  }
-  .chart-box {
-    height: 90vw;
-    min-height: 250px;
-  }
-}
 
 .filters-container {
   display: flex;

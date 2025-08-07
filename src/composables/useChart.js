@@ -5,7 +5,7 @@ import { getStoredWithExpiry, setStoredWithExpiry } from '../utils/storage'
 const custom_maxWidth = 15
 const custom_maxModelNumPerColumn = 5
 const custom_padding_label_to_point = 0
-const point_hover_showing_model_name = false
+const point_hover_showing_model_name = true
 const maxChartWidth = 1324
 const debug_chart = false
 

@@ -7,7 +7,8 @@
 
 <script setup>
 import RadarChart from './components/RadarChart.vue';
-const maxChartWidth = '1324px'
+// const maxChartWidth = 1324
+// const minChartWidth = 500
 </script>
 
 
@@ -24,10 +25,11 @@ main {
   min-height: 100vh; /* Fill viewport height */
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   margin: 0;
   padding: 0;
-  max-width: v-bind(maxChartWidth);
+  /* max-width: v-bind('maxChartWidth + "px"');
+  min-width: v-bind('minChartWidth + "px"'); */
 }
 
 h1 {
