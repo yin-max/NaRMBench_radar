@@ -270,7 +270,7 @@ const maxChartHeight = maxChartWidth * 0.6
 }
 
 .note p {
-  margin: 0rem 0rem 0rem 1rem;
+  margin: 0rem 0rem 3rem 1rem;
 }
 
 
