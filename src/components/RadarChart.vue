@@ -33,15 +33,18 @@
               <button @click="selectAllModels" class="toggle-btn" :disabled="!modelNames.length">All</button>
             </div>
           </legend>
+          <p :style="{margin: '-0.5rem 0rem 0rem 0rem'}">
+            Click to select/unselect specific tools
+          </p>
           <div class="model-columns">
             <div v-for="(column, colIndex) in modelColumns" :key="colIndex" class="column">
               <label v-for="name in column" :key="name" class="checkbox"
-                :class="{ nomal: name.toLowerCase() !== 'retrain', retrain: name.toLowerCase().includes('retrain') }"
+                :class="{ normal: name.toLowerCase() !== 'retrain', retrain: name.toLowerCase().includes('retrain') }"
                 :style="{ backgroundColor: selectedModels.includes(name) ? modelColors[name] : 'transparent' }"
                 :title="name">
                 <input type="checkbox" :value="name" v-model="selectedModels" />
                 <span class="model-name"
-                  :style="{ color: selectedModels.includes(name) ? '#ffffff' : modelColors[name] }">{{ name }}</span>
+                  :style="{ color: selectedModels.includes(name) ? '#ffffff' : modelColors[name] }">{{ name.replace('-retrain', '') }}</span>
               </label>
             </div>
           </div>
@@ -246,8 +249,9 @@ const maxChartHeight = maxChartWidth * 0.6
   color: #fff;
 }
 
-.model-columns .checkbox.nomal {
-  border-color: #000;
+.model-columns .checkbox.normal {
+  /* 透明 */
+  border-color: #00000000;
   border-width: 0.2rem;
 }
 
