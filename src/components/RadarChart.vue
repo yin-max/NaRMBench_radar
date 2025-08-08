@@ -33,6 +33,9 @@
               <button @click="selectAllModels" class="toggle-btn" :disabled="!modelNames.length">All</button>
             </div>
           </legend>
+          <p :style="{margin: '-0.5rem 0rem 0rem 0rem'}">
+            Click to select/unselect specific tools
+          </p>
           <div class="model-columns">
             <div v-for="(column, colIndex) in modelColumns" :key="colIndex" class="column">
               <label v-for="name in column" :key="name" class="checkbox"
