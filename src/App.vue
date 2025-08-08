@@ -1,6 +1,6 @@
 <template>
   <main>
-    <h1>Heading</h1>
+    <h1>Benchmarking the computational tools detecting multitype RNA modifications using Nanopore Direct RNA Sequencing (NaRMBench)</h1>
     <RadarChart />
   </main>
 </template>

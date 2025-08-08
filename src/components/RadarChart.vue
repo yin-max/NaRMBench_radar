@@ -6,7 +6,7 @@
       <!-- Kit selection -->
       <div class="filters">
         <fieldset>
-          <legend>ONT-DRS Kit</legend>
+          <legend>ONT-DRS chemistry version</legend>
           <label v-for="kit in kits" :key="kit" class="checkbox" :class="{ selected: selectedKit === kit }">
             <input type="radio" :value="kit" v-model="selectedKit" name="kit-selection" />
             {{ kit }}
@@ -16,7 +16,7 @@
       <!-- Modification selection -->
       <div class="filters">
         <fieldset>
-          <legend>RNA Modifications</legend>
+          <legend>RNA modification type</legend>
           <label v-for="csv in csvFiles" :key="csv" class="checkbox" :class="{ selected: selectedCsv === csv }">
             <input type="radio" :value="csv" v-model="selectedCsv" name="csv-selection" />
             {{ csv.replace(/_\d{3}\.csv$/, '.csv').replace('.csv', '') }}
@@ -49,9 +49,10 @@
         <!-- #45b2e0: retrained model -->
         <div class="note">
           <p>
-            Note: Models with a
+            <!-- Note: Models with a
             <span class="color-box"></span>
-            border are retrained models.
+            border are retrained models. -->
+            Retrained tools are highlighted by cyan border.
           </p>
         </div>
       </div>
