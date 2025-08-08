@@ -1,6 +1,6 @@
 <template>
   <main>
-    <h1>Benchmarking the computational tools detecting multitype RNA modifications using Nanopore Direct RNA Sequencing (NaRMBench)</h1>
+    <h1>Benchmarking the Nanopore DRS based RNA Modification detection tools (NaRMBench)</h1>
     <RadarChart />
   </main>
 </template>
@@ -26,7 +26,7 @@ main {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 0;
+  margin: 1rem;
   padding: 0;
   /* max-width: v-bind('maxChartWidth + "px"');
   min-width: v-bind('minChartWidth + "px"'); */
