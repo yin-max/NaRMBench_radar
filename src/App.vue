@@ -25,7 +25,7 @@ main {
   min-height: 100vh; /* Fill viewport height */
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   margin: 0;
   padding: 0;
   /* max-width: v-bind('maxChartWidth + "px"');
